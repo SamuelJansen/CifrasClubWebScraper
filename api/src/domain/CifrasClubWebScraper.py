@@ -47,7 +47,7 @@ class CifrasClubWebScraper(WebScrapHelper.WebScrapHelper):
         inputElement = self.typeIn(self.textSearch,inputElement)
 
     def hitArtist(self,searchPage):
-        return self.findByContext(self.CONTEXT_DATA_T_ARTIST,searchPage)
+        return self.findBySelector(self.SELECTOR_DATA_T_ARTIST,searchPage)
 
     def getSongNameList(self,artistPage):
         songElementList = self.findAllByClass(CifrasClubWebScraper.CLASS_ARTIST_LINK,artistPage)
