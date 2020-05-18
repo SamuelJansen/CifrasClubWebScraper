@@ -1,0 +1,14 @@
+CifrasClubWebScraper:
+    api:
+        name: cifras-club
+        main-url: https://www.cifraclub.com.br/
+        extension: yml
+        dependency:
+            update: False
+            list: [Popen,Path,chromedriver,selenium]
+        git:
+            url: https://github.com/SamuelJansen/
+            extension: git
+    python:
+        version: '3.8'
+        version-command: python --version
