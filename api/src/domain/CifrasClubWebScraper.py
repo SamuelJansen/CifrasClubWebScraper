@@ -9,6 +9,11 @@ class CifrasClubWebScraper(WebScrapHelper.WebScrapHelper):
     CLASS_LETRA_L = 'letra-l'
     CLASS_LETRA = 'letra'
 
+    START_OF_TEXT = '<|startoftext|>'
+    END_OF_TEXT = '<|endoftext|>'
+    LINE_SEPARATOR = '==================================================================================================================================================================================='
+    SEPARATOR = f'{LINE_SEPARATOR}\n{LINE_SEPARATOR}\n{LINE_SEPARATOR}'
+
     def handleCommandList(self,commandList):
         try :
             commandList = commandList.copy()
@@ -35,46 +40,66 @@ class CifrasClubWebScraper(WebScrapHelper.WebScrapHelper):
             'Mumford & Sons',
             'AC/DC'
         ]
+        songLyricList = []
+        songLineList = []
+        secondSongLineList = []
+        errorLineList = []
         for artistName in artistList :
             self.resetValues(None,artistName)
             artistPage = self.accessArtist()
             songSet = self.getSongSet(artistPage).copy()
-            songList = []
-            songLyricList = []
-            errorMessageList = []
             for songName,songHref in songSet.items() :
                 try :
                     print()
                     print(f'Scrapping {songName} song from {songHref}')
                     songPage = self.accessSong(songHref)
-                    songLyric = self.getSongLyric(songPage)
+                    songLyric, errorMessage = self.getSongLyric(songPage)
                     songLyricList.append(songLyric)
-                    songList += [
-                        '<|startoftext|>',
-                        f'Song name: {songName}',
-                        f'Song href: {songHref}',
-                        f'Song lyric: {songLyric}',
-                        '<|endoftext|>'
-                    ]
+                    if errorMessage :
+                        secondSongLineList += self.buildSongLines(artistName,songName,songHref,errorMessage,songLyric)
+                    else :
+                        songLineList += self.buildSongLines(artistName,songName,songHref,errorMessage,songLyric)
                     print('Success!')
                 except Exception as exception :
                     errorMessage = f'{self.globals.ERROR}Not possible to scrap {songName} from {songHref}. Cause: {str(exception)}'
-                    errorMessageList += [
-                        '<|startoftext|>',
-                        f'Song name: {songName}',
-                        f'Song href: {songHref}',
-                        f'Song lyric: {errorMessage}',
-                        '<|endoftext|>'
-                    ]
+                    songLyric = ''
+                    errorLineList += self.buildSongLines(artistName,songName,songHref,errorMessage,'')
                     print(errorMessage)
                 print()
-        dataSetFilePath = f'{self.globals.apiPath}{self.globals.baseApiPath}{self.globals.REPOSITORY_BACK_SLASH}{self.DATASET_FILE_NAME}.{self.globals.extension}'
-        with open(dataSetFilePath,self.globals.OVERRIDE,encoding = self.globals.ENCODING) as dataSetFile :
-            dataSetFile.write(self.globals.NEW_LINE.join(songList))
-        failedDataSetFilePath = f'{self.globals.apiPath}{self.globals.baseApiPath}{self.globals.REPOSITORY_BACK_SLASH}{self.FAILED_DATASET_FILE_NAME}.{self.globals.extension}'
-        with open(failedDataSetFilePath,self.globals.OVERRIDE,encoding = self.globals.ENCODING) as failedDataSetFile :
-            failedDataSetFile.write(self.globals.NEW_LINE.join(errorMessageList))
+        self.saveDataSetFile(songLineList,f'{self.globals.apiPath}{self.globals.baseApiPath}{self.globals.REPOSITORY_BACK_SLASH}{self.DATASET_FILE_NAME}.{self.globals.extension}')
+        self.saveDataSetFile(secondSongLineList,f'''{self.globals.apiPath}{self.globals.baseApiPath}{self.globals.REPOSITORY_BACK_SLASH}{'second-dataset'}.{self.globals.extension}''')
+        self.saveDataSetFile(errorLineList,f'{self.globals.apiPath}{self.globals.baseApiPath}{self.globals.REPOSITORY_BACK_SLASH}{self.FAILED_DATASET_FILE_NAME}.{self.globals.extension}')
         return songLyricList
+        # dataSetFilePath = f'{self.globals.apiPath}{self.globals.baseApiPath}{self.globals.REPOSITORY_BACK_SLASH}{self.DATASET_FILE_NAME}.{self.globals.extension}'
+        # with open(dataSetFilePath,self.globals.OVERRIDE,encoding = self.globals.ENCODING) as dataSetFile :
+        #     dataSetFile.write(self.globals.NEW_LINE.join(songLineList))
+
+        # secondDataSetFilePath = f'{self.globals.apiPath}{self.globals.baseApiPath}{self.globals.REPOSITORY_BACK_SLASH}{self.DATASET_FILE_NAME}.{self.globals.extension}'
+        # with open(secondDataSetFilePath,self.globals.OVERRIDE,encoding = self.globals.ENCODING) as secondDataSetFile :
+        #     secondDataSetFile.write(self.globals.NEW_LINE.join(secondSongLineList))
+
+        # failedDataSetFilePath = f'{self.globals.apiPath}{self.globals.baseApiPath}{self.globals.REPOSITORY_BACK_SLASH}{self.FAILED_DATASET_FILE_NAME}.{self.globals.extension}'
+        # with open(failedDataSetFilePath,self.globals.OVERRIDE,encoding = self.globals.ENCODING) as failedDataSetFile :
+        #     failedDataSetFile.write(self.globals.NEW_LINE.join(errorLineList))
+
+    def buildSongLines(self,artistName,songName,songHref,errorMessage,songLyric):
+        return [
+            self.SEPARATOR,
+            '',
+            f'Artist / Band: {artistName}',
+            f'Song name: {songName}',
+            f'Song href: {songHref}',
+            f'Error message: {errorMessage.replace(self.globals.NEW_LINE,self.globals.NOTHING)}',
+            f'',
+            self.START_OF_TEXT,
+            songLyric,
+            self.END_OF_TEXT,
+            ''
+        ]
+
+    def saveDataSetFile(self,dataSetLineList,dataSetFilePath):
+        with open(dataSetFilePath,self.globals.OVERRIDE,encoding = self.globals.ENCODING) as dataSetFile :
+            dataSetFile.write(self.globals.NEW_LINE.join(dataSetLineList))
 
     def accessArtist(self):
         return self.accessUrl(f'''{self.mainUrl}{self.artistName.strip().lower().replace('`','').replace("'",'').replace("'",'').replace(' &','').replace(' / ',' ').replace(' /',' ').replace('/ ',' ').replace('/',' ').replace(' ','-')}{'/'}''')
@@ -87,9 +112,9 @@ class CifrasClubWebScraper(WebScrapHelper.WebScrapHelper):
         return self.findBySelector(self.SELECTOR_DATA_T_ARTIST,searchPage)
 
     def getSongSet(self,artistPage):
-        songList = self.findAllByClass(CifrasClubWebScraper.CLASS_ARTIST_LINK,artistPage)
+        songLineList = self.findAllByClass(CifrasClubWebScraper.CLASS_ARTIST_LINK,artistPage)
         songSet = {}
-        for song in songList :
+        for song in songLineList :
             songSet[song.text] = song.get_attribute(self.ATTRIBUTE_HREF)
         return songSet
 
@@ -99,24 +124,22 @@ class CifrasClubWebScraper(WebScrapHelper.WebScrapHelper):
 
     def getSongLyric(self,songPage):
         songPageBody = self.findById(self.PAGE_SONG_BODY,songPage)
+        errorMessage = ''
         try :
-            songLyricElement = self.findByTag(self.TAG_PRE,songPageBody)
-            return songLyricElement.text
+            return self.findByTag(self.TAG_PRE,songPageBody).text, errorMessage
         except Exception as exception :
-            errorMessage = f'{self.globals.apiName} Failed to access tag {self.TAG_PRE}. Cause: {str(exception)}'
+            errorMessage += f'{self.globals.apiName} Failed to access tag {self.TAG_PRE}. Cause: {str(exception)}'
             self.globals.debug(errorMessage)
             try :
-                songLyricElement = self.findByClass(self.CLASS_LETRA_L,songPageBody)
-                return f'{self.globals.ERROR}{errorMessage}{self.globals.NEW_LINE}{songLyricElement.text}'
+                return self.findByClass(self.CLASS_LETRA_L,songPageBody).text, f'{self.globals.ERROR}{errorMessage}'
             except Exception as exception :
                 newErrorMessage = f'{self.globals.apiName} Failed to access css class {self.CLASS_LETRA_L}. Cause: {str(exception)}'
-                errorMessage += f'{self.globals.SPACE_DASH_SPACE}{newErrorMessage}'
                 self.globals.debug(newErrorMessage)
+                errorMessage += f'{self.globals.SPACE_DASH_SPACE}{newErrorMessage}'
                 try :
-                    songLyricElement = self.findByClass(self.CLASS_LETRA,songPageBody)
-                    return f'{self.globals.ERROR}{errorMessage}{self.globals.NEW_LINE}{songLyricElement.text}'
+                    return self.findByClass(self.CLASS_LETRA,songPageBody).text, f'{self.globals.ERROR}{errorMessage}'
                 except Exception as exception :
                     newErrorMessage = f'{self.globals.apiName} Failed to access css class {self.CLASS_LETRA}. Cause: {str(exception)}'
-                    errorMessage += f'{self.globals.SPACE_DASH_SPACE}{newErrorMessage}'
                     self.globals.debug(newErrorMessage)
-                    return f'{self.globals.ERROR}{errorMessage}{self.globals.NEW_LINE}{songLyricElement.text}'
+                    errorMessage += f'{self.globals.SPACE_DASH_SPACE}{newErrorMessage}'
+                    return '', f'{self.globals.ERROR}{errorMessage}'
