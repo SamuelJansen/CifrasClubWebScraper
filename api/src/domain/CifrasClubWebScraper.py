@@ -14,16 +14,30 @@ class CifrasClubWebScraper(WebScrapHelper.WebScrapHelper):
     LINE_SEPARATOR = '==================================================================================================================================================================================='
     SEPARATOR = f'{LINE_SEPARATOR}\n{LINE_SEPARATOR}\n{LINE_SEPARATOR}'
 
+    TOKEN_ARTIST_DASH_BAND_SPACE = 'Artist / Band: '
+    TOKEN_SONG_NAME = 'Song name: '
+    TOKEN_SONG_REF = 'Song href: '
+    TOKEN_ERROR_MESSAGE = 'Error message: '
+
     def handleCommandList(self,commandList):
-        try :
-            commandList = commandList.copy()
-            globals = self.globals
-            apiKey = globals.CIFRAS_CLUB_WEB_SCRAPER
-            if apiKey == commandList[0] :
-                return self.scrapIt(commandList.remove(globals.CIFRAS_CLUB_WEB_SCRAPER))
-            print(f'Missing: "{globals.CIFRAS_CLUB_WEB_SCRAPER}"')
-        except Exception as exception :
-            print(f'{globals.ERROR}{globals.apiName} Failed to run. Cause: {str(exception)}')
+        commandList = commandList.copy()
+        globals = self.globals
+        apiKey = globals.CIFRAS_CLUB_WEB_SCRAPER
+        if apiKey == commandList[0] :
+            if len(commandList) > 1 :
+                if 'revisit-failed-dataset' == commandList[1] :
+                    try :
+                        return self.revisitFailedDataSet()
+                    except Exception as exception :
+                        print(f'{globals.ERROR}{globals.apiName} Failed to run. Cause: {str(exception)}')
+                        return
+            else :
+                try :
+                    return self.scrapIt(commandList.remove(globals.CIFRAS_CLUB_WEB_SCRAPER))
+                except Exception as exception :
+                    print(f'{globals.ERROR}{globals.apiName} Failed to run. Cause: {str(exception)}')
+                    return
+        print(f'Missing: "{globals.CIFRAS_CLUB_WEB_SCRAPER}"')
 
     def __init__(self,globals,**kwargs):
         WebScrapHelper.WebScrapHelper.__init__(self,globals,**kwargs)
@@ -34,21 +48,40 @@ class CifrasClubWebScraper(WebScrapHelper.WebScrapHelper):
 
     def scrapIt(self,commandList):
         artistList = [
+            'Led Zeppelin',
+            'Metallica',
+            'Bon Jovi',
+            'U2',
             'Ramones',
             'John Mayer',
             "Guns N' Roses",
             'Mumford & Sons',
-            'AC/DC'
+            'AC/DC',
+            'Iron Maden'
         ]
+        artistSet = {}
+        for artistName in artistList :
+            artistSet[artistName] = {}
+        return self.getItScraped(artistSet)
+
+    def getItScraped(self,artistSet):
         songLyricList = []
         songLineList = []
         secondSongLineList = []
         errorLineList = []
-        for artistName in artistList :
+        for artistName in artistSet.keys() :
             self.resetValues(None,artistName)
             artistPage = self.accessArtist()
-            songSet = self.getSongSet(artistPage).copy()
-            for songName,songHref in songSet.items() :
+            artistSet[artistName] = self.getSongSet(artistPage).copy()
+        return self.scrapSequence(artistSet)
+
+    def scrapSequence(self,artistSet):
+        songLyricList = []
+        songLineList = []
+        secondSongLineList = []
+        errorLineList = []
+        for artistName in artistSet.keys() :
+            for songName,songHref in artistSet[artistName].items() :
                 try :
                     print()
                     print(f'Scrapping {songName} song from {songHref}')
@@ -66,36 +99,64 @@ class CifrasClubWebScraper(WebScrapHelper.WebScrapHelper):
                     errorLineList += self.buildSongLines(artistName,songName,songHref,errorMessage,'')
                     print(errorMessage)
                 print()
-        self.saveDataSetFile(songLineList,f'{self.globals.apiPath}{self.globals.baseApiPath}{self.globals.REPOSITORY_BACK_SLASH}{self.DATASET_FILE_NAME}.{self.globals.extension}')
-        self.saveDataSetFile(secondSongLineList,f'''{self.globals.apiPath}{self.globals.baseApiPath}{self.globals.REPOSITORY_BACK_SLASH}{'second-dataset'}.{self.globals.extension}''')
-        self.saveDataSetFile(errorLineList,f'{self.globals.apiPath}{self.globals.baseApiPath}{self.globals.REPOSITORY_BACK_SLASH}{self.FAILED_DATASET_FILE_NAME}.{self.globals.extension}')
-        return songLyricList
-        # dataSetFilePath = f'{self.globals.apiPath}{self.globals.baseApiPath}{self.globals.REPOSITORY_BACK_SLASH}{self.DATASET_FILE_NAME}.{self.globals.extension}'
-        # with open(dataSetFilePath,self.globals.OVERRIDE,encoding = self.globals.ENCODING) as dataSetFile :
-        #     dataSetFile.write(self.globals.NEW_LINE.join(songLineList))
+        self.saveAll({
+            f'{self.globals.apiPath}{self.globals.baseApiPath}{self.globals.REPOSITORY_BACK_SLASH}{self.DATASET_FILE_NAME}.{self.globals.extension}' : songLineList,
+            f'''{self.globals.apiPath}{self.globals.baseApiPath}{self.globals.REPOSITORY_BACK_SLASH}{'second-dataset'}.{self.globals.extension}''' : secondSongLineList,
+            f'{self.globals.apiPath}{self.globals.baseApiPath}{self.globals.REPOSITORY_BACK_SLASH}{self.FAILED_DATASET_FILE_NAME}.{self.globals.extension}' : errorLineList
+        })
+        return songLyricList,songLineList,secondSongLineList,errorLineList
 
-        # secondDataSetFilePath = f'{self.globals.apiPath}{self.globals.baseApiPath}{self.globals.REPOSITORY_BACK_SLASH}{self.DATASET_FILE_NAME}.{self.globals.extension}'
-        # with open(secondDataSetFilePath,self.globals.OVERRIDE,encoding = self.globals.ENCODING) as secondDataSetFile :
-        #     secondDataSetFile.write(self.globals.NEW_LINE.join(secondSongLineList))
+    def revisitFailedDataSet(self):
+        dataSetFilePath = f'{self.globals.apiPath}{self.globals.baseApiPath}{self.globals.REPOSITORY_BACK_SLASH}{self.FAILED_DATASET_FILE_NAME}.{self.globals.extension}'
+        failedDataSet = self.getDataSetFile(dataSetFilePath)
+        artistSet = {}
+        for file in failedDataSet.split(self.SEPARATOR) :
+            if file :
+                lineList = file.split(self.globals.NEW_LINE)
+                artistName = self.globals.NOTHING
+                songName = self.globals.NOTHING
+                songHref = self.globals.NOTHING
+                for line in lineList :
+                    if self.TOKEN_ARTIST_DASH_BAND_SPACE in line :
+                        artistName = line.replace(self.TOKEN_ARTIST_DASH_BAND_SPACE,self.globals.NOTHING)
+                    if self.TOKEN_SONG_NAME in line :
+                        songName = line.replace(self.TOKEN_SONG_NAME,self.globals.NOTHING)
+                    if self.TOKEN_SONG_REF in line :
+                        songHref = line.replace(self.TOKEN_SONG_REF,self.globals.NOTHING)
+                    if (not artistName == self.globals.NOTHING) and (not songName == self.globals.NOTHING) and (not songHref == self.globals.NOTHING) :
+                        if artistName in artistSet.keys() :
+                            artistSet[artistName][songName] = songHref
+                        else :
+                            artistSet[artistName] = {songName:songHref}
+                        break
+                break
+        return self.scrapSequence(artistSet)
 
-        # failedDataSetFilePath = f'{self.globals.apiPath}{self.globals.baseApiPath}{self.globals.REPOSITORY_BACK_SLASH}{self.FAILED_DATASET_FILE_NAME}.{self.globals.extension}'
-        # with open(failedDataSetFilePath,self.globals.OVERRIDE,encoding = self.globals.ENCODING) as failedDataSetFile :
-        #     failedDataSetFile.write(self.globals.NEW_LINE.join(errorLineList))
 
     def buildSongLines(self,artistName,songName,songHref,errorMessage,songLyric):
         return [
             self.SEPARATOR,
-            '',
-            f'Artist / Band: {artistName}',
-            f'Song name: {songName}',
-            f'Song href: {songHref}',
-            f'Error message: {errorMessage.replace(self.globals.NEW_LINE,self.globals.NOTHING)}',
-            f'',
+            self.globals.NOTHING,
+            f'{self.TOKEN_ARTIST_DASH_BAND_SPACE}{artistName}',
+            f'{self.TOKEN_SONG_NAME}{songName}',
+            f'{self.TOKEN_SONG_REF}{songHref}',
+            f'{self.TOKEN_ERROR_MESSAGE}{errorMessage.replace(self.globals.NEW_LINE,self.globals.NOTHING)}',
+            self.globals.NOTHING,
             self.START_OF_TEXT,
             songLyric,
             self.END_OF_TEXT,
-            ''
+            self.globals.NOTHING
         ]
+
+    def getDataSetFile(self,dataSetFilePath):
+        file = ''
+        with open(dataSetFilePath,self.globals.READ,encoding = self.globals.ENCODING) as dataSetFile :
+            file = self.globals.NOTHING.join(dataSetFile.readlines())
+        return file
+
+    def saveAll(self,dataSetSet):
+        for dataSetPath,dataSetLineList in dataSetSet.items() :
+            self.saveDataSetFile(dataSetLineList,dataSetPath)
 
     def saveDataSetFile(self,dataSetLineList,dataSetFilePath):
         with open(dataSetFilePath,self.globals.OVERRIDE,encoding = self.globals.ENCODING) as dataSetFile :
