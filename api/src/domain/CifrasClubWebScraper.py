@@ -1,4 +1,4 @@
-import WebScrapHelper
+import WebScrapHelper, SqlAlchemyHelper, OriginalContent
 
 class CifrasClubWebScraper(WebScrapHelper.WebScrapHelper):
 
@@ -14,74 +14,105 @@ class CifrasClubWebScraper(WebScrapHelper.WebScrapHelper):
     LINE_SEPARATOR = '==================================================================================================================================================================================='
     SEPARATOR = f'{LINE_SEPARATOR}\n{LINE_SEPARATOR}\n{LINE_SEPARATOR}'
 
-    TOKEN_ARTIST_DASH_BAND_SPACE = 'Artist / Band: '
+    TOKEN_PERFORMER_DASH_BAND_SPACE = 'Performer: '
     TOKEN_SONG_NAME = 'Song name: '
     TOKEN_SONG_REF = 'Song href: '
     TOKEN_ERROR_MESSAGE = 'Error message: '
 
+    KW_SCRAP = 'scrap'
+    KW_REVISIT_FAILED_DATASET = 'revisit-failed-dataset'
+    KW_QUERY = 'query'
+
+    _0_API_KEY = 0
+    _1_COMMAND = 1
+    _0_ARGUMENT = 2
+    _1_ARGUMENT = 3
+    _2_ARGUMENT = 4
+
     def handleCommandList(self,commandList):
+        print(f'commandList = {commandList}')
         commandList = commandList.copy()
         globals = self.globals
         apiKey = globals.CIFRAS_CLUB_WEB_SCRAPER
-        if apiKey == commandList[0] :
-            if len(commandList) > 1 :
-                if 'revisit-failed-dataset' == commandList[1] :
-                    try :
-                        return self.revisitFailedDataSet()
-                    except Exception as exception :
-                        print(f'{globals.ERROR}{globals.apiName} Failed to run. Cause: {str(exception)}')
-                        return
-            else :
+        if apiKey == commandList[self._0_API_KEY] :
+            if len(commandList) > self._1_COMMAND and commandList[self._1_COMMAND] :
                 try :
-                    return self.scrapIt(commandList.remove(globals.CIFRAS_CLUB_WEB_SCRAPER))
-                except Exception as exception :
-                    print(f'{globals.ERROR}{globals.apiName} Failed to run. Cause: {str(exception)}')
+                    response = self.commandSet[commandList[self._1_COMMAND]](commandList[self._0_ARGUMENT:])
+                    globals.debug(f'response = {response}')
+                    return response
+                except :
+                    print(f'{globals.ERROR}Failed to execute command: "{commandList[self._1_COMMAND]}"')
                     return
-        print(f'Missing: "{globals.CIFRAS_CLUB_WEB_SCRAPER}"')
+            else :
+                print(f'Missing command: {list(self.commandSet.keys())}')
+        else :
+            print(f'Missing api key:"{globals.CIFRAS_CLUB_WEB_SCRAPER}"')
 
     def __init__(self,globals,**kwargs):
         WebScrapHelper.WebScrapHelper.__init__(self,globals,**kwargs)
+        self.repository = SqlAlchemyHelper.SqlAlchemyHelper(self.globals,'dataset')
+        self.repository.run()
+        self.commandSet = {
+            self.KW_SCRAP : self.scrapIt,
+            self.KW_QUERY : self.queryIt,
+            self.KW_REVISIT_FAILED_DATASET : self.revisitIt
+        }
 
-    def resetValues(self,url,artistName):
+    def resetValues(self,url,performerName):
         self.url = url
-        self.artistName = artistName
+        self.performerName = performerName
 
-    def scrapIt(self,commandList):
-        artistList = [
-            'Led Zeppelin',
-            'Metallica',
-            'Bon Jovi',
-            'U2',
-            'Ramones',
-            'John Mayer',
-            "Guns N' Roses",
-            'Mumford & Sons',
-            'AC/DC',
-            'Iron Maden'
-        ]
-        artistSet = {}
-        for artistName in artistList :
-            artistSet[artistName] = {}
-        return self.getItScraped(artistSet)
+    def scrapIt(self,performerList):
+        self.newDriver()
+        if performerList :
+            try :
+                performerSet = {}
+                for performerName in performerList :
+                    performerSet[performerName] = {}
+                return self.getItScraped(performerSet)
+            except Exception as exception :
+                print(f'{globals.ERROR}{globals.apiName} Failed to scrap it {performerList}. Cause: {str(exception)}')
+                return
+        print(f'Missing performer list')
 
-    def getItScraped(self,artistSet):
+    def queryIt(self,queryList):
+        print(f'queryList = {queryList}')
+        if queryList :
+            try :
+                songName = queryList[0]
+                # self.repository.session.query(OriginalContent.OriginalContent).filter_by(name=songName).all()
+                return self.repository.session.query(OriginalContent.OriginalContent).filter_by(name=songName).all()
+            except Exception as exception :
+                print(f'{globals.ERROR}{globals.apiName} Failed to query it {queryList}. Cause: {str(exception)}')
+                return
+        print(f'Missing performer list')
+
+    def revisitIt(self,revisitList):
+        self.newDriver()
+        try :
+            return self.revisitFailedDataSet()
+        except Exception as exception :
+            print(f'{globals.ERROR}{globals.apiName} Failed to run. Cause: {str(exception)}')
+            return
+
+    def getItScraped(self,performerSet):
         songLyricList = []
         songLineList = []
         secondSongLineList = []
         errorLineList = []
-        for artistName in artistSet.keys() :
-            self.resetValues(None,artistName)
-            artistPage = self.accessArtist()
-            artistSet[artistName] = self.getSongSet(artistPage).copy()
-        return self.scrapSequence(artistSet)
+        for performerName in performerSet.keys() :
+            self.resetValues(None,performerName)
+            performerPage = self.accessPerformer()
+            performerSet[performerName] = self.getSongSet(performerPage).copy()
+        return self.scrapSequence(performerSet)
 
-    def scrapSequence(self,artistSet):
+    def scrapSequence(self,performerSet):
         songLyricList = []
         songLineList = []
         secondSongLineList = []
         errorLineList = []
-        for artistName in artistSet.keys() :
-            for songName,songHref in artistSet[artistName].items() :
+        for performerName in performerSet.keys() :
+            for songName,songHref in performerSet[performerName].items() :
                 try :
                     print()
                     print(f'Scrapping {songName} song from {songHref}')
@@ -89,55 +120,62 @@ class CifrasClubWebScraper(WebScrapHelper.WebScrapHelper):
                     songLyric, errorMessage = self.getSongLyric(songPage)
                     songLyricList.append(songLyric)
                     if errorMessage :
-                        secondSongLineList += self.buildSongLines(artistName,songName,songHref,errorMessage,songLyric)
+                        secondSongLineList += self.buildSongLines(performerName,songName,songHref,errorMessage,songLyric)
                     else :
-                        songLineList += self.buildSongLines(artistName,songName,songHref,errorMessage,songLyric)
+                        songLineList += self.buildSongLines(performerName,songName,songHref,errorMessage,songLyric)
                     print('Success!')
                 except Exception as exception :
                     errorMessage = f'{self.globals.ERROR}Not possible to scrap {songName} from {songHref}. Cause: {str(exception)}'
                     songLyric = ''
-                    errorLineList += self.buildSongLines(artistName,songName,songHref,errorMessage,'')
+                    errorLineList += self.buildSongLines(performerName,songName,songHref,errorMessage,'')
                     print(errorMessage)
                 print()
         self.saveAll({
-            f'{self.globals.apiPath}{self.globals.baseApiPath}{self.globals.REPOSITORY_BACK_SLASH}{self.DATASET_FILE_NAME}.{self.globals.extension}' : songLineList,
-            f'''{self.globals.apiPath}{self.globals.baseApiPath}{self.globals.REPOSITORY_BACK_SLASH}{'second-dataset'}.{self.globals.extension}''' : secondSongLineList,
-            f'{self.globals.apiPath}{self.globals.baseApiPath}{self.globals.REPOSITORY_BACK_SLASH}{self.FAILED_DATASET_FILE_NAME}.{self.globals.extension}' : errorLineList
+            self.buildRepositoryFilePath(self.DATASET_FILE_NAME) : songLineList,
+            self.buildRepositoryFilePath(self.SECOND_DATASET_FILE_NAME) : secondSongLineList,
+            self.buildRepositoryFilePath(self.FAILED_DATASET_FILE_NAME) : errorLineList
         })
         return songLyricList,songLineList,secondSongLineList,errorLineList
+
+    def buildRepositoryFilePath(self,fileName):
+        return f'''{self.globals.apiPath}{self.globals.baseApiPath}{self.FILE_FOLDER_LOCAL_PATH}{fileName}.{self.globals.extension}'''
 
     def revisitFailedDataSet(self):
         dataSetFilePath = f'{self.globals.apiPath}{self.globals.baseApiPath}{self.globals.REPOSITORY_BACK_SLASH}{self.FAILED_DATASET_FILE_NAME}.{self.globals.extension}'
         failedDataSet = self.getDataSetFile(dataSetFilePath)
-        artistSet = {}
+        performerSet = {}
         for file in failedDataSet.split(self.SEPARATOR) :
             if file :
                 lineList = file.split(self.globals.NEW_LINE)
-                artistName = self.globals.NOTHING
+                performerName = self.globals.NOTHING
                 songName = self.globals.NOTHING
                 songHref = self.globals.NOTHING
                 for line in lineList :
-                    if self.TOKEN_ARTIST_DASH_BAND_SPACE in line :
-                        artistName = line.replace(self.TOKEN_ARTIST_DASH_BAND_SPACE,self.globals.NOTHING)
+                    if self.TOKEN_PERFORMER_DASH_BAND_SPACE in line :
+                        performerName = line.replace(self.TOKEN_PERFORMER_DASH_BAND_SPACE,self.globals.NOTHING)
                     if self.TOKEN_SONG_NAME in line :
                         songName = line.replace(self.TOKEN_SONG_NAME,self.globals.NOTHING)
                     if self.TOKEN_SONG_REF in line :
                         songHref = line.replace(self.TOKEN_SONG_REF,self.globals.NOTHING)
-                    if (not artistName == self.globals.NOTHING) and (not songName == self.globals.NOTHING) and (not songHref == self.globals.NOTHING) :
-                        if artistName in artistSet.keys() :
-                            artistSet[artistName][songName] = songHref
+                    if (not performerName == self.globals.NOTHING) and (not songName == self.globals.NOTHING) and (not songHref == self.globals.NOTHING) :
+                        if performerName in performerSet.keys() :
+                            performerSet[performerName][songName] = songHref
                         else :
-                            artistSet[artistName] = {songName:songHref}
+                            performerSet[performerName] = {songName:songHref}
                         break
                 break
-        return self.scrapSequence(artistSet)
+        return self.scrapSequence(performerSet)
 
 
-    def buildSongLines(self,artistName,songName,songHref,errorMessage,songLyric):
+    def buildSongLines(self,performerName,songName,songHref,errorMessage,songLyric):
+        originalContent = OriginalContent.OriginalContent(performerName,songName,songHref,songLyric)
+        self.repository.session.add(originalContent)
+        self.repository.session.commit()
+        # self.repository.session.flush()
         return [
             self.SEPARATOR,
             self.globals.NOTHING,
-            f'{self.TOKEN_ARTIST_DASH_BAND_SPACE}{artistName}',
+            f'{self.TOKEN_PERFORMER_DASH_BAND_SPACE}{performerName}',
             f'{self.TOKEN_SONG_NAME}{songName}',
             f'{self.TOKEN_SONG_REF}{songHref}',
             f'{self.TOKEN_ERROR_MESSAGE}{errorMessage.replace(self.globals.NEW_LINE,self.globals.NOTHING)}',
@@ -162,18 +200,24 @@ class CifrasClubWebScraper(WebScrapHelper.WebScrapHelper):
         with open(dataSetFilePath,self.globals.OVERRIDE,encoding = self.globals.ENCODING) as dataSetFile :
             dataSetFile.write(self.globals.NEW_LINE.join(dataSetLineList))
 
-    def accessArtist(self):
-        return self.accessUrl(f'''{self.mainUrl}{self.artistName.strip().lower().replace('`','').replace("'",'').replace("'",'').replace(' &','').replace(' / ',' ').replace(' /',' ').replace('/ ',' ').replace('/',' ').replace(' ','-')}{'/'}''')
+    def accessPerformer(self):
+        filteredPerformName = self.removeCharactere(self.performerName.strip().lower(),'`')
+        filteredPerformName = self.removeCharactere(filteredPerformName,"'")
+        filteredPerformName = self.removeCharactere(filteredPerformName,'"')
+        filteredPerformName = self.removeCharactere(filteredPerformName,'&')
+        filteredPerformName = self.removeCharactere(filteredPerformName,' / ')
+        filteredPerformName = self.removeCharactere(filteredPerformName,'&')
+        return self.accessUrl(f'''{self.mainUrl}{filteredPerformName.replace(' ','-')}{'/'}''')
+
+    def removeCharactere(self,string,characterer):
+        return string.replace(f' {characterer} ',' ').replace(f' {characterer}',' ').replace(f'{characterer} ',' ').replace(f'{characterer}',' ')
 
     def search(self,driver):
         inputElement = self.findByTag(self.TAG_IMPUT,self.findByTag(self.TAG_FORM,self.findByTag(self.TAG_HEADER,driver)))
         inputElement = self.typeIn(self.textSearch,inputElement)
 
-    def hitArtist(self,searchPage):
-        return self.findBySelector(self.SELECTOR_DATA_T_ARTIST,searchPage)
-
-    def getSongSet(self,artistPage):
-        songLineList = self.findAllByClass(CifrasClubWebScraper.CLASS_ARTIST_LINK,artistPage)
+    def getSongSet(self,performerPage):
+        songLineList = self.findAllByClass(CifrasClubWebScraper.CLASS_ARTIST_LINK,performerPage)
         songSet = {}
         for song in songLineList :
             songSet[song.text] = song.get_attribute(self.ATTRIBUTE_HREF)
