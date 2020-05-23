@@ -1,4 +1,4 @@
-import WebScrapHelper, SqlAlchemyHelper, OriginalContent
+import WebScrapHelper, OriginalContent
 
 class CifrasClubWebScraper(WebScrapHelper.WebScrapHelper):
 
@@ -23,35 +23,8 @@ class CifrasClubWebScraper(WebScrapHelper.WebScrapHelper):
     KW_REVISIT_FAILED_DATASET = 'revisit-failed-dataset'
     KW_QUERY = 'query'
 
-    _0_API_KEY = 0
-    _1_COMMAND = 1
-    _0_ARGUMENT = 2
-    _1_ARGUMENT = 3
-    _2_ARGUMENT = 4
-
-    def handleCommandList(self,commandList):
-        print(f'commandList = {commandList}')
-        commandList = commandList.copy()
-        globals = self.globals
-        apiKey = globals.CIFRAS_CLUB_WEB_SCRAPER
-        if apiKey == commandList[self._0_API_KEY] :
-            if len(commandList) > self._1_COMMAND and commandList[self._1_COMMAND] :
-                try :
-                    response = self.commandSet[commandList[self._1_COMMAND]](commandList[self._0_ARGUMENT:])
-                    globals.debug(f'response = {response}')
-                    return response
-                except :
-                    print(f'{globals.ERROR}Failed to execute command: "{commandList[self._1_COMMAND]}"')
-                    return
-            else :
-                print(f'Missing command: {list(self.commandSet.keys())}')
-        else :
-            print(f'Missing api key:"{globals.CIFRAS_CLUB_WEB_SCRAPER}"')
-
     def __init__(self,globals,**kwargs):
         WebScrapHelper.WebScrapHelper.__init__(self,globals,**kwargs)
-        self.repository = SqlAlchemyHelper.SqlAlchemyHelper(self.globals,'dataset')
-        self.repository.run()
         self.commandSet = {
             self.KW_SCRAP : self.scrapIt,
             self.KW_QUERY : self.queryIt,
