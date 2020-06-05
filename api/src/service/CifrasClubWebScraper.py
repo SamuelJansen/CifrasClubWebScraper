@@ -36,6 +36,7 @@ class CifrasClubWebScraper(WebScrapHelper.WebScrapHelper):
         self.performerName = performerName
 
     def scrapIt(self,performerList):
+        globals = self.globals
         self.newDriver()
         if performerList :
             try :
