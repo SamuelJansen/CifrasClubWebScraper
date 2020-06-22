@@ -158,10 +158,21 @@ class CifrasClubWebScraper(WebScrapHelper.WebScrapHelper):
 
 
     def buildSongLines(self,performerName,songName,songHref,errorMessage,songLyric):
-        originalContent = OriginalContent(performerName,songName,songHref,songLyric)
-        self.repository.session.add(originalContent)
-        self.repository.session.commit()
-        # self.repository.session.flush()
+        try :
+            if len(songLyric) >= 32768 :
+                songLyric = songLyric[:32768]
+            originalContent = OriginalContent(performerName,songName,songHref,songLyric)
+            self.repository.session.add(originalContent)
+            self.repository.session.commit()
+        except Exception as exception :
+            exceptionMessage = str(exception)
+            self.repository.session.expire_all()
+            try :
+                self.repository.session.close()
+                self.repository.session.begin()
+            except Exception as exception :
+                print(f'{self.globals.ERROR}Not possible to restart session. Cause: {str(exception)}')
+            print(f'{self.globals.ERROR}Not possible to scrap {songName} from {songHref}. Cause: {exceptionMessage}')
         return [
             self.SEPARATOR,
             self.globals.NOTHING,
