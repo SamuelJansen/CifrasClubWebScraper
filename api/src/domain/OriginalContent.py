@@ -1,15 +1,13 @@
-from SqlAlchemyHelper import Table, Column, Integer, String, ForeignKey, UnicodeText, MetaData
+from PythonFrameworkTable import *
+from SqlAlchemyHelper import *
 
-import SqlAlchemyHelper
-
-class OriginalContent(SqlAlchemyHelper.Base):
-    __tablename__ = 'original_content'
+class OriginalContent(Model):
+    __tablename__ = ORIGINAL_CONTENT
 
     id = Column(Integer, primary_key=True)
     performer = Column(String(128))
     name = Column(String(128))
     url = Column(String(1024))
-    # visitCount = Column(Integer)
     content = Column(UnicodeText(32768))
 
     def __init__(self,performer,name,url,content):
@@ -20,7 +18,3 @@ class OriginalContent(SqlAlchemyHelper.Base):
 
     def __repr__(self):
         return f'id = {self.id}\nname = {self.name}\nperformer = {self.performer}\nurl = {self.url}\ncontent = {self.content}'
-
-    # @classmethod
-    # def findByName(cls, session, name):
-    #     return session.query(cls).filter_by(name=name).all()
