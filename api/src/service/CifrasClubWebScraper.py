@@ -1,4 +1,5 @@
 import WebScrapHelper, OriginalContent
+from CifrasClubTable import *
 
 class CifrasClubWebScraper(WebScrapHelper.WebScrapHelper):
 
@@ -24,6 +25,7 @@ class CifrasClubWebScraper(WebScrapHelper.WebScrapHelper):
     KW_QUERY = 'query'
 
     def __init__(self,globals,**kwargs):
+        kwargs['model'] = Model
         WebScrapHelper.WebScrapHelper.__init__(self,globals,**kwargs)
         self.commandSet = {
             self.KW_SCRAP : self.scrapIt,

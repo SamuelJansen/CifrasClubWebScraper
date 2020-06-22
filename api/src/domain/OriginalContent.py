@@ -1,4 +1,4 @@
-from PythonFrameworkTable import *
+from CifrasClubTable import *
 from SqlAlchemyHelper import *
 
 class OriginalContent(Model):
