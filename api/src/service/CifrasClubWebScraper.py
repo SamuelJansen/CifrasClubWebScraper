@@ -1,6 +1,9 @@
 import WebScrapHelper, OriginalContent
 from CifrasClubTable import *
 
+import OriginalContent
+OriginalContent = OriginalContent.OriginalContent
+
 class CifrasClubWebScraper(WebScrapHelper.WebScrapHelper):
 
     CONTEXT_DATA_T_ARTIST = f'//a[@data-t="artist"]'
@@ -40,6 +43,7 @@ class CifrasClubWebScraper(WebScrapHelper.WebScrapHelper):
     def scrapIt(self,performerList):
         globals = self.globals
         self.newDriver()
+        print(f'Scraping performers = {performerList}')
         if performerList :
             try :
                 performerSet = {}
@@ -55,9 +59,19 @@ class CifrasClubWebScraper(WebScrapHelper.WebScrapHelper):
         print(f'queryList = {queryList}')
         if queryList :
             try :
-                songName = queryList[0]
-                # self.repository.session.query(OriginalContent.OriginalContent).filter_by(name=songName).all()
-                return self.repository.session.query(OriginalContent.OriginalContent).filter_by(name=songName).all()
+                query = {}
+                try :
+                    performerName = queryList[0]
+                    if performerName != self.globals.NOTHING :
+                        query['performer'] = performerName
+                except : pass
+                try :
+                    songName = queryList[1]
+                    if songName != self.globals.NOTHING :
+                        query['name'] = songName
+                except : pass
+                return self.repository.findAllByQuery(query,OriginalContent)
+                # return self.repository.session.query(OriginalContent).filter_by(name=songName).all()
             except Exception as exception :
                 print(f'{globals.ERROR}{globals.apiName} Failed to query it {queryList}. Cause: {str(exception)}')
                 return
@@ -144,7 +158,7 @@ class CifrasClubWebScraper(WebScrapHelper.WebScrapHelper):
 
 
     def buildSongLines(self,performerName,songName,songHref,errorMessage,songLyric):
-        originalContent = OriginalContent.OriginalContent(performerName,songName,songHref,songLyric)
+        originalContent = OriginalContent(performerName,songName,songHref,songLyric)
         self.repository.session.add(originalContent)
         self.repository.session.commit()
         # self.repository.session.flush()

@@ -8,7 +8,7 @@ class OriginalContent(Model):
     performer = Column(String(128))
     name = Column(String(128))
     url = Column(String(1024))
-    content = Column(UnicodeText(32768))
+    content = Column(String(32768))
 
     def __init__(self,performer,name,url,content):
         self.performer = performer

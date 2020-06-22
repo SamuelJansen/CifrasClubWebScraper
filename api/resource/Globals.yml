@@ -1,0 +1,31 @@
+Globals:
+    print-status: False
+    api:
+        name: cifras-club
+        repository :
+            dialect: postgres
+            user: hihranhcwdnlry
+            password: 8ab4dfb43674f7786d8ca7f73d579c06124c6a9021c3ec6a157a3f4da0d145b7
+            host: ec2-54-221-244-70.compute-1.amazonaws.com
+            port: 5432
+            database: dc6ucfs40t1ih8
+        main-url: https://www.cifraclub.com.br/
+        list: [CifrasClubWebScraper] ###- [PythonFramework]
+        extension: yml
+        dependency:
+            update: False
+            list:
+                web: [Popen,Path,webdriver_manager,selenium,sqlalchemy,pyautogui,psycopg2] ###- pyaudio,python-Levenshtein
+                local: []
+        language: EN-US ###- PT-BR ###-
+        git:
+            url: https://github.com/SamuelJansen/
+            extension: git
+    python:
+        version: '3.8'
+        version-command: python --version
+        py-audio:
+            install-example:
+                64: pip install PyAudio-0.2.11-cp38-cp38-win_amd64.whl ###- example
+                32: PyAudio-0.2.11-cp38-cp38-win32.whl ###- example
+        link: https://www.lfd.uci.edu/~gohlke/pythonlibs/#pyaudio ###- library
